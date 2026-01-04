@@ -40,6 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openbox \
     expect \
     xdotool \
+    xorg \
+    xserver-xorg-video-amdgpu \
+    xserver-xorg-video-intel \
     && rm -rf /var/lib/apt/lists/*
 
 # Install .NET runtime (required for game mods)

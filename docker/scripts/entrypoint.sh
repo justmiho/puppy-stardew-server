@@ -240,15 +240,25 @@ if [ -d "/home/steam/preinstalled-mods" ]; then
     done
 fi
 
-# Step 5: Setup virtual display
-log_step "Step 6: Starting virtual display..."
 
-rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
-Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
-export DISPLAY=:99
-sleep 3
+# Step 5: Setup virtual display or Xorg (GPU)
+log_step "Step 6: Starting display server..."
 
-log_info "✓ Virtual display started on :99 (1280x720)"
+if [ "$USE_GPU" = "true" ]; then
+    log_info "USE_GPU=true，使用xorg作为显示服务器，支持硬件加速。"
+    export DISPLAY=:99
+    # 启动xorg（假设主机已正确配置amdgpu驱动，且容器有权限）
+    nohup Xorg :99 -noreset +extension GLX +extension RANDR +extension RENDER &
+    sleep 3
+    log_info "✓ Xorg已启动在 :0 (硬件加速)"
+else
+    log_info "USE_GPU未启用，使用Xvfb虚拟显示。"
+    rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
+    Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
+    export DISPLAY=:99
+    sleep 3
+    log_info "✓ Virtual display started on :99 (1280x720)"
+fi
 
 # Step 6: Start VNC server (optional)
 if [ "$ENABLE_VNC" = "true" ]; then
