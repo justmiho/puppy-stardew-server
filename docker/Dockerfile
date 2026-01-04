@@ -40,6 +40,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openbox \
     expect \
     xdotool \
+    xorg \
+    libgl1-mesa-dri \
+    libgl1-mesa-glx \
+    libegl1-mesa \
+    mesa-utils \
+    git \
+    python3 \
+    python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install .NET runtime (required for game mods)
@@ -53,6 +61,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -m -s /bin/bash steam && \
     mkdir -p /home/steam/steamcmd /home/steam/stardewvalley /home/steam/.config/StardewValley && \
     chown -R steam:steam /home/steam
+
+# Install noVNC (web-based VNC client) and websockify
+RUN git clone --depth 1 https://github.com/novnc/noVNC.git /opt/noVNC && \
+    git clone --depth 1 https://github.com/novnc/websockify /opt/noVNC/utils/websockify && \
+    chmod -R +x /opt/noVNC/utils && \
+    chown -R steam:steam /opt/noVNC
 
 # Set working directory and switch to steam user
 WORKDIR /home/steam
@@ -79,7 +93,7 @@ USER steam
 
 # Copy scripts
 # 复制脚本
-RUN mkdir -p /home/steam/scripts
+RUN mkdir -p /home/steam/scripts /etc/X11/xorg.conf.d
 COPY --chown=steam:steam scripts/entrypoint.sh /home/steam/entrypoint.sh
 COPY --chown=steam:steam scripts/log-manager.sh /home/steam/scripts/log-manager.sh
 COPY --chown=steam:steam scripts/log-monitor.sh /home/steam/scripts/log-monitor.sh
@@ -87,6 +101,7 @@ COPY --chown=steam:steam scripts/view-logs.sh /home/steam/scripts/view-logs.sh
 COPY --chown=steam:steam scripts/auto-enable-server.sh /home/steam/scripts/auto-enable-server.sh
 COPY --chown=steam:steam scripts/auto-handle-readycheck.sh /home/steam/scripts/auto-handle-readycheck.sh
 COPY --chown=steam:steam scripts/vnc-monitor.sh /home/steam/scripts/vnc-monitor.sh
+COPY --chown=steam:steam config/custom.conf /etc/X11/xorg.conf.d/custom.conf
 RUN chmod +x /home/steam/entrypoint.sh /home/steam/scripts/*.sh
 
 # Copy optimized game config template for VNC display
@@ -99,7 +114,7 @@ USER root
 
 # Expose game port (UDP) and VNC port (TCP)
 # 暴露游戏端口（UDP）和 VNC 端口（TCP）
-EXPOSE 24642/udp 5900/tcp
+EXPOSE 24642/udp 5900/tcp 6080/tcp
 
 # Health check to ensure server is running
 # 健康检查确保服务器正在运行

@@ -1,0 +1,30 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build docker image
+        working-directory: ./docker
+        run: |
+          GIT_HASH=$(git rev-parse --short HEAD)
+          docker build . \
+            --file Dockerfile \
+            --tag puppy-stardew-server:$GIT_HASH
+
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+
+      - name: Push image
+        run: |
+          GIT_HASH=$(git rev-parse --short HEAD)
+          docker tag puppy-stardew-server:$GIT_HASH just3000/puppy-stardew-server:latest
+          docker push just3000/puppy-stardew-server:latest

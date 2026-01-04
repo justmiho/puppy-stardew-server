@@ -91,7 +91,6 @@ download_game_via_steam() {
 # Phase 1: Root Initialization (Permission Fixes)
 # 阶段1：Root 初始化（权限修复）
 # =============================================
-
 if [ "$(id -u)" = "0" ]; then
     log_step "================================================"
     log_step "  Phase 1: Root Initialization"
@@ -135,6 +134,28 @@ if [ "$(id -u)" = "0" ]; then
         log_info "✅ Fixed permissions for $FIXED_COUNT file(s)"
     else
         log_info "✅ All permissions correct"
+    fi
+    
+    # Step 5: Setup virtual display
+    log_step "Step 6: Starting virtual display..."
+
+    # Choose GPU-backed Xorg when USE_GPU=true, otherwise use Xvfb on a virtual display
+    if [ "$USE_GPU" = "true" ]; then
+        log_info "Starting Xorg (GPU mode)..."
+        rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
+        Xorg :99 -config /etc/X11/xorg.conf.d/custom.conf -noreset +iglx +extension GLX &
+        export DISPLAY=:99
+        export XAUTHORITY=/root/.Xauthority
+        sleep 3
+        log_info "✓ Xorg started on :99 (GPU mode)"
+    else
+        log_info "Starting Xvfb (software mode)..."
+        rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
+        Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
+        export DISPLAY=:99
+        export XAUTHORITY=/root/.Xauthority
+        sleep 3
+        log_info "✓ Virtual display started on :99 (1280x720)"
     fi
 
     log_info "Switching to steam user..."
@@ -240,16 +261,6 @@ if [ -d "/home/steam/preinstalled-mods" ]; then
     done
 fi
 
-# Step 5: Setup virtual display
-log_step "Step 6: Starting virtual display..."
-
-rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 2>/dev/null || true
-Xvfb :99 -screen 0 1280x720x24 -ac +extension GLX +render -noreset &
-export DISPLAY=:99
-sleep 3
-
-log_info "✓ Virtual display started on :99 (1280x720)"
-
 # Step 6: Start VNC server (optional)
 if [ "$ENABLE_VNC" = "true" ]; then
     log_step "Step 7: Starting VNC server..."
@@ -260,13 +271,13 @@ if [ "$ENABLE_VNC" = "true" ]; then
         log_warn "VNC password > 8 chars, truncating to: ${VNC_PASSWORD:0:8}"
         VNC_PASSWORD="${VNC_PASSWORD:0:8}"
     fi
-
+restart
     # Wait for Xvfb to be fully ready
     sleep 2
 
     # Start x11vnc with plaintext password (more reliable than password file)
-    log_info "Starting x11vnc on port 5900..."
-    x11vnc -display :99 -forever -shared -passwd "$VNC_PASSWORD" -rfbport 5900 -noxdamage -bg 2>&1 | grep -v "^$"
+    log_info "Starting x11vnc on port 5900 (display: $DISPLAY)..."
+    x11vnc -display "$DISPLAY" -forever -shared -passwd "$VNC_PASSWORD" -rfbport 5900 -noxdamage -noshm  -xfixes -noscr -bg 2>&1 | grep -v "^$"
 
     # Wait for x11vnc to start
     sleep 2
@@ -283,6 +294,16 @@ if [ "$ENABLE_VNC" = "true" ]; then
             log_info "Starting VNC health monitor..."
             /home/steam/scripts/vnc-monitor.sh &
             log_info "✓ VNC monitor started (30s check interval)"
+        fi
+        # Optionally start noVNC web client
+        if [ "$ENABLE_NOVNC" = "true" ]; then
+            log_info "Starting noVNC web client on port 6080..."
+            if [ -x "/opt/noVNC/utils/novnc_proxy" ]; then
+                /opt/noVNC/utils/novnc_proxy --vnc 127.0.0.1:5900 --listen 6080 >/dev/null 2>&1 &
+                log_info "✓ noVNC started on port 6080"
+            else
+                log_warn "noVNC not found at /opt/noVNC; skipping noVNC start"
+            fi
         fi
     else
         log_error "✗ VNC server failed to start"
